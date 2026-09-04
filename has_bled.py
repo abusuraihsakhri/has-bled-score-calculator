@@ -9,6 +9,14 @@ Reference: Lip GY, et al. "A novel user-friendly score (HAS-BLED) to assess
 Chest. 2010;138(5):1093-1100.
 """
 
+
+def _validate_bool(value, name):
+    """Validate that a parameter is a boolean, raising TypeError if not."""
+    if not isinstance(value, bool):
+        raise TypeError(
+            f"Parameter '{name}' must be a boolean, got {type(value).__name__}"
+        )
+
 # ---------------------------------------------------------------------------
 # Risk factor definitions
 # ---------------------------------------------------------------------------
@@ -59,16 +67,41 @@ def calculate_score(hypertension=False, renal=False, liver=False,
     """
     Calculate HAS-BLED score from boolean risk factor flags.
 
-    Returns a dict with:
-      - score (int): 0-9
-      - risk_level (str): "Low", "Moderate", "High", "Very High"
-      - annual_bleeding_risk (float): estimated % per year
-      - factors_present (list[str]): names of present factors
-      - modifiable (list[str]): modifiable factors present
-      - non_modifiable (list[str]): non-modifiable factors present
-      - category_breakdown (dict): category letter -> points from that category
-      - guidance (str): clinical guidance text
+    Args:
+        hypertension: Uncontrolled SBP >160 mmHg
+        renal: Abnormal renal function (dialysis/transplant/Cr >2.26)
+        liver: Abnormal liver function (cirrhosis/elevated LFTs)
+        stroke: Prior stroke or TIA
+        bleeding: Bleeding history or predisposition
+        labile_inr: Labile/unstable INR (<60% TTR)
+        elderly: Age >65 years
+        drugs: Concomitant antiplatelet agents or NSAIDs
+        alcohol: ≥8 drinks per week
+
+    Returns:
+        dict with:
+          - score (int): 0-9
+          - risk_level (str): "Low", "Moderate", "High", "Very High"
+          - annual_bleeding_risk (float): estimated % per year
+          - factors_present (list[str]): names of present factors
+          - modifiable (list[str]): modifiable factors present
+          - non_modifiable (list[str]): non-modifiable factors present
+          - category_breakdown (dict): category letter -> points from that category
+          - guidance (str): clinical guidance text
+
+    Raises:
+        TypeError: If any parameter is not a boolean.
     """
+    _validate_bool(hypertension, "hypertension")
+    _validate_bool(renal, "renal")
+    _validate_bool(liver, "liver")
+    _validate_bool(stroke, "stroke")
+    _validate_bool(bleeding, "bleeding")
+    _validate_bool(labile_inr, "labile_inr")
+    _validate_bool(elderly, "elderly")
+    _validate_bool(drugs, "drugs")
+    _validate_bool(alcohol, "alcohol")
+
     flags = {
         "hypertension": hypertension,
         "renal": renal,
@@ -162,14 +195,31 @@ def assess_with_chadsvasc(hasbled_score, chadsvasc_score):
     CHA₂DS₂-VASc stroke risk for balanced anticoagulation decisions.
 
     Args:
-        hasbled_score: int 0-9
-        chadsvasc_score: int 0-9
+        hasbled_score: int 0-9 (values outside range are clamped)
+        chadsvasc_score: int 0-9 (values outside range are clamped)
 
     Returns:
         dict with stroke_risk, bleeding_risk, net_benefit, recommendation
+
+    Raises:
+        TypeError: If scores are not numeric types that can be converted to int.
+        ValueError: If scores cannot be converted to int.
     """
-    hasbled_score = max(0, min(9, int(hasbled_score)))
-    chadsvasc_score = max(0, min(9, int(chadsvasc_score)))
+    try:
+        hasbled_score = int(hasbled_score)
+    except (TypeError, ValueError) as e:
+        raise TypeError(
+            f"hasbled_score must be a numeric type, got {type(hasbled_score).__name__}"
+        ) from e
+    try:
+        chadsvasc_score = int(chadsvasc_score)
+    except (TypeError, ValueError) as e:
+        raise TypeError(
+            f"chadsvasc_score must be a numeric type, got {type(chadsvasc_score).__name__}"
+        ) from e
+
+    hasbled_score = max(0, min(9, hasbled_score))
+    chadsvasc_score = max(0, min(9, chadsvasc_score))
 
     stroke_pct, stroke_level = CHA2DS2VASC_RISK.get(
         chadsvasc_score, (15.2, "High")
@@ -242,7 +292,13 @@ def calculate_modified_score(hypertension=False, renal=False, liver=False,
 
     These are sometimes included in extended bleeding risk assessments.
     Score range: 0-11.
+
+    Raises:
+        TypeError: If any parameter is not a boolean.
     """
+    _validate_bool(anemia, "anemia")
+    _validate_bool(low_platelets, "low_platelets")
+
     base = calculate_score(
         hypertension=hypertension, renal=renal, liver=liver,
         stroke=stroke, bleeding=bleeding, labile_inr=labile_inr,

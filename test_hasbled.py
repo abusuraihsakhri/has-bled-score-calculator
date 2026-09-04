@@ -460,6 +460,106 @@ class TestRiskFactorDefinitions(unittest.TestCase):
         self.assertEqual(cats, ["H", "A", "A", "S", "B", "L", "E", "D", "D"])
 
 
+class TestInputValidation(unittest.TestCase):
+    """Validate that core functions reject non-boolean/non-numeric inputs."""
+
+    def test_calculate_score_rejects_string(self):
+        with self.assertRaises(TypeError):
+            calculate_score(hypertension="yes")
+
+    def test_calculate_score_rejects_int(self):
+        with self.assertRaises(TypeError):
+            calculate_score(hypertension=1)
+
+    def test_calculate_score_rejects_none(self):
+        with self.assertRaises(TypeError):
+            calculate_score(hypertension=None)
+
+    def test_calculate_score_rejects_list(self):
+        with self.assertRaises(TypeError):
+            calculate_score(renal=[True])
+
+    def test_calculate_modified_score_rejects_string(self):
+        with self.assertRaises(TypeError):
+            calculate_modified_score(anemia="yes")
+
+    def test_calculate_modified_score_rejects_int(self):
+        with self.assertRaises(TypeError):
+            calculate_modified_score(low_platelets=1)
+
+    def test_assess_rejects_string_hasbled(self):
+        with self.assertRaises(TypeError):
+            assess_with_chadsvasc(hasbled_score="high", chadsvasc_score=3)
+
+    def test_assess_rejects_string_chadsvasc(self):
+        with self.assertRaises(TypeError):
+            assess_with_chadsvasc(hasbled_score=3, chadsvasc_score="low")
+
+    def test_assess_rejects_none(self):
+        with self.assertRaises(TypeError):
+            assess_with_chadsvasc(hasbled_score=None, chadsvasc_score=3)
+
+    def test_assess_accepts_numeric_string(self):
+        """Numeric strings should be convertible to int."""
+        result = assess_with_chadsvasc(hasbled_score="3", chadsvasc_score="4")
+        self.assertEqual(result["hasbled_score"], 3)
+        self.assertEqual(result["chadsvasc_score"], 4)
+
+    def test_assess_accepts_float(self):
+        """Floats should be convertible to int."""
+        result = assess_with_chadsvasc(hasbled_score=3.7, chadsvasc_score=4.2)
+        self.assertEqual(result["hasbled_score"], 3)
+        self.assertEqual(result["chadsvasc_score"], 4)
+
+    def test_calculate_score_accepts_bool_subclass(self):
+        """bool is its own subclass; ensure explicit True/False works."""
+        result = calculate_score(hypertension=True, renal=False)
+        self.assertEqual(result["score"], 1)
+
+
+class TestEdgeCases(unittest.TestCase):
+    """Additional edge case coverage."""
+
+    def test_score_consistency_with_all_flags(self):
+        """Score should equal count of True flags."""
+        result = calculate_score(
+            hypertension=True, renal=True, liver=False,
+            stroke=True, bleeding=False, labile_inr=True,
+            elderly=False, drugs=True, alcohol=False,
+        )
+        # True flags: hypertension, renal, stroke, labile_inr, drugs = 5
+        self.assertEqual(result["score"], 5)
+        self.assertEqual(len(result["factors_present"]), 5)
+
+    def test_category_breakdown_sums_to_score(self):
+        """Sum of category breakdown values should equal total score."""
+        result = calculate_score(
+            hypertension=True, renal=True, liver=True,
+            stroke=True, drugs=True, alcohol=True,
+        )
+        cat_sum = sum(result["category_breakdown"].values())
+        self.assertEqual(cat_sum, result["score"])
+
+    def test_modifiable_plus_nonmodifiable_equals_total(self):
+        """Modifiable + non-modifiable should equal total factors present."""
+        result = calculate_score(
+            hypertension=True, renal=True, liver=True,
+            stroke=True, bleeding=True, elderly=True,
+        )
+        total = len(result["modifiable"]) + len(result["non_modifiable"])
+        self.assertEqual(total, len(result["factors_present"]))
+
+    def test_guidance_present_for_all_scores(self):
+        """Every result should include non-empty guidance text."""
+        for flags in [
+            {},
+            {"hypertension": True},
+            {"hypertension": True, "stroke": True, "elderly": True},
+        ]:
+            result = calculate_score(**flags)
+            self.assertTrue(len(result["guidance"]) > 0)
+
+
 def _get_project_dir():
     """Return the project directory for CLI subprocess calls."""
     import os
