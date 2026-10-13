@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="description" content="Private, browser-based HAS-BLED scoring reference">
+  <title>HAS-BLED | Bleeding risk factor assessment</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <p class="eyebrow">ATRIAL FIBRILLATION · CLINICAL REFERENCE</p>
+      <h1>HAS-BLED calculator</h1>
+      <p class="lede">Select the relevant factors to calculate the standard 0–9 point HAS-BLED score.
+        This is a bleeding risk review tool, not an anticoagulation decision rule.</p>
+    </header>
+    <div class="columns">
+      <form id="calculator">
+        <fieldset>
+          <legend>Risk factors <span class="small">(1 point each)</span></legend>
+          <div id="factors" class="factor-grid"></div>
+        </fieldset>
+        <button type="reset" class="reset">Clear selections</button>
+      </form>
+      <section class="result" aria-labelledby="result-title">
+        <h2 id="result-title">Assessment</h2>
+        <div id="score" class="score" aria-live="polite">0 / 9</div>
+        <p id="level" class="level">Low bleeding-risk category</p>
+        <h3>Historical major bleeding rate</h3>
+        <p id="rate" aria-live="polite">1.13 major bleeds per 100 patient-years</p>
+        <h3>Selected risk factors</h3>
+        <p id="selected">None selected</p>
+        <h3>Potentially modifiable factors</h3>
+        <p id="modifiable">None selected</p>
+      </section>
+    </div>
+    <aside class="notice">
+      <h2>Interpretation and limitations</h2>
+      <p>A score of 3 or more identifies elevated bleeding risk and prompts review of modifiable factors.
+        A high score alone is <strong>not</strong> a reason to withhold oral anticoagulation.
+        Historical rates are cohort-level observations, not individualized predictions.
+        Rates above score 5 are not reported because observations were insufficient.</p>
+      <p>Labile INR primarily applies to vitamin K antagonist therapy. This tool does not calculate
+        stroke risk, net clinical benefit, or treatment eligibility. Clinical decisions require
+        current guidelines and individual evaluation.</p>
+      <p class="small">References:
+        <a href="https://doi.org/10.1378/chest.10-0134" target="_blank" rel="noopener noreferrer">Pisters et al., Chest (2010)</a>;
+        <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11095842/" target="_blank" rel="noopener noreferrer">2023 ACC/AHA/ACCP/HRS AF guideline</a>.
+      </p>
+    </aside>
+    <footer>
+      <p>All inputs and calculations stay in this browser tab. No patient data is transmitted or saved.</p>
+      <p><a href="https://github.com/abusuraihsakhri/has-bled-score-calculator" target="_blank" rel="noopener noreferrer">Source repository</a></p>
+    </footer>
+  </main>
+</body>
+</html>

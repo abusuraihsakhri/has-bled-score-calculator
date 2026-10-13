@@ -118,7 +118,7 @@ class TestScoreHighRisk(unittest.TestCase):
             stroke=True, bleeding=True, elderly=True,
         )
         self.assertEqual(result["score"], 6)
-        self.assertEqual(result["risk_level"], "Very High")
+        self.assertEqual(result["risk_level"], "High")
 
     def test_max_score_9(self):
         result = calculate_score(
@@ -127,7 +127,7 @@ class TestScoreHighRisk(unittest.TestCase):
             elderly=True, drugs=True, alcohol=True,
         )
         self.assertEqual(result["score"], 9)
-        self.assertEqual(result["risk_level"], "Very High")
+        self.assertEqual(result["risk_level"], "High")
         self.assertEqual(len(result["factors_present"]), 9)
 
 
@@ -227,42 +227,39 @@ class TestChadsvascIntegration(unittest.TestCase):
         result = assess_with_chadsvasc(hasbled_score=1, chadsvasc_score=0)
         self.assertEqual(result["hasbled_score"], 1)
         self.assertEqual(result["chadsvasc_score"], 0)
-        self.assertFalse(result["favors_anticoagulation"])
-        self.assertIn("NOT recommended", result["recommendation"])
+        self.assertIsNone(result["favors_anticoagulation"])
+        self.assertIn("guidelines", result["recommendation"])
 
     def test_low_bleed_high_stroke(self):
         result = assess_with_chadsvasc(hasbled_score=1, chadsvasc_score=5)
-        self.assertTrue(result["favors_anticoagulation"])
-        self.assertIn("recommended", result["recommendation"].lower())
+        self.assertIsNone(result["favors_anticoagulation"])
+        self.assertIn("must not be used", result["recommendation"])
 
-    def test_high_bleed_high_stroke_net_positive(self):
-        """Stroke risk (6.7%) > bleeding risk (3.74%) => net positive."""
+    def test_high_bleed_high_stroke_has_no_fake_net_benefit(self):
         result = assess_with_chadsvasc(hasbled_score=3, chadsvasc_score=5)
-        self.assertTrue(result["favors_anticoagulation"])
-        self.assertGreater(result["net_benefit_pct"], 0)
+        self.assertIsNone(result["favors_anticoagulation"])
+        self.assertIsNone(result["net_benefit_pct"])
+        self.assertIn("High HAS-BLED", result["recommendation"])
 
-    def test_high_bleed_low_stroke(self):
-        """Bleeding risk exceeds stroke risk."""
+    def test_high_bleed_low_stroke_does_not_override_stroke_guidelines(self):
         result = assess_with_chadsvasc(hasbled_score=5, chadsvasc_score=2)
-        self.assertFalse(result["favors_anticoagulation"])
-        self.assertLess(result["net_benefit_pct"], 0)
+        self.assertIsNone(result["favors_anticoagulation"])
+        self.assertIsNone(result["net_benefit_pct"])
 
     def test_borderline_chadsvasc_1(self):
         result = assess_with_chadsvasc(hasbled_score=0, chadsvasc_score=1)
-        self.assertIn("Borderline", result["recommendation"])
+        self.assertIn("clinical factors", result["recommendation"])
 
-    def test_score_clamping(self):
-        """Scores outside 0-9 should be clamped."""
-        result = assess_with_chadsvasc(hasbled_score=-1, chadsvasc_score=15)
-        self.assertEqual(result["hasbled_score"], 0)
-        self.assertEqual(result["chadsvasc_score"], 9)
+    def test_out_of_range_scores_rejected(self):
+        with self.assertRaises(ValueError):
+            assess_with_chadsvasc(hasbled_score=-1, chadsvasc_score=3)
+        with self.assertRaises(ValueError):
+            assess_with_chadsvasc(hasbled_score=3, chadsvasc_score=15)
 
-    def test_high_bleed_high_stroke_careful(self):
-        """When bleeding risk >= stroke risk, careful assessment needed."""
+    def test_high_bleed_high_stroke_not_subtracted(self):
         result = assess_with_chadsvasc(hasbled_score=4, chadsvasc_score=3)
-        # stroke 3.2% vs bleeding 8.7% => net negative
-        self.assertFalse(result["favors_anticoagulation"])
-        self.assertIn("individualized", result["recommendation"].lower())
+        self.assertIsNone(result["favors_anticoagulation"])
+        self.assertIn("cannot be subtracted", result["recommendation"])
 
 
 class TestModifiedHasbled(unittest.TestCase):
@@ -292,7 +289,7 @@ class TestModifiedHasbled(unittest.TestCase):
         )
         self.assertEqual(result["standard_score"], 2)
         self.assertEqual(result["modified_score"], 4)
-        self.assertEqual(result["risk_level"], "High")
+        self.assertEqual(result["risk_level"], "Not validated")
 
     def test_modified_very_high(self):
         result = calculate_modified_score(
@@ -302,7 +299,7 @@ class TestModifiedHasbled(unittest.TestCase):
         )
         self.assertEqual(result["standard_score"], 6)
         self.assertEqual(result["modified_score"], 8)
-        self.assertEqual(result["risk_level"], "Very High")
+        self.assertEqual(result["risk_level"], "Not validated")
 
 
 class TestFormatOutput(unittest.TestCase):
@@ -364,7 +361,7 @@ class TestCliScoreCommand(unittest.TestCase):
             "--elderly", "--drugs", "--alcohol",
         ])
         self.assertIn("Score: 9", out)
-        self.assertIn("Very High", out)
+        self.assertIn("High", out)
 
 
 class TestCliAssessCommand(unittest.TestCase):
@@ -505,11 +502,11 @@ class TestInputValidation(unittest.TestCase):
         self.assertEqual(result["hasbled_score"], 3)
         self.assertEqual(result["chadsvasc_score"], 4)
 
-    def test_assess_accepts_float(self):
-        """Floats should be convertible to int."""
-        result = assess_with_chadsvasc(hasbled_score=3.7, chadsvasc_score=4.2)
-        self.assertEqual(result["hasbled_score"], 3)
-        self.assertEqual(result["chadsvasc_score"], 4)
+    def test_assess_rejects_float_and_bool(self):
+        with self.assertRaises(TypeError):
+            assess_with_chadsvasc(hasbled_score=3.7, chadsvasc_score=4)
+        with self.assertRaises(TypeError):
+            assess_with_chadsvasc(hasbled_score=True, chadsvasc_score=4)
 
     def test_calculate_score_accepts_bool_subclass(self):
         """bool is its own subclass; ensure explicit True/False works."""
@@ -559,6 +556,34 @@ class TestEdgeCases(unittest.TestCase):
             result = calculate_score(**flags)
             self.assertTrue(len(result["guidance"]) > 0)
 
+
+
+class TestClinicalSafeguards(unittest.TestCase):
+    """The UI/API must not infer net benefit from incomparable event rates."""
+
+    def test_scores_six_to_nine_have_no_extrapolated_event_rate(self):
+        for n in range(6, 10):
+            self.assertIsNone(BLEEDING_RISK[n])
+        result = calculate_score(hypertension=True, renal=True, liver=True,
+                                 stroke=True, bleeding=True, elderly=True)
+        self.assertIsNone(result["annual_bleeding_risk"])
+        self.assertIn("Not estimable", format_result(result))
+
+    def test_combined_assessment_with_score_nine_formats(self):
+        result = assess_with_chadsvasc(9, 9)
+        self.assertIsNone(result["bleeding_annual_risk_pct"])
+        self.assertIn("not estimable", format_assessment(result))
+
+    def test_noninteger_string_or_negative_rejected(self):
+        for value in ("3.7", "-1", "9.0", "abc", "", "３", 3.5):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
+                assess_with_chadsvasc(value, 2)
+
+    def test_modified_score_is_explicitly_unvalidated(self):
+        result = calculate_modified_score(anemia=True, low_platelets=True)
+        self.assertEqual(result["modified_score"], 2)
+        self.assertEqual(result["risk_level"], "Not validated")
+        self.assertIn("Exploratory", result["note"])
 
 def _get_project_dir():
     """Return the project directory for CLI subprocess calls."""

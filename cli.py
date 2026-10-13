@@ -4,7 +4,7 @@ CLI for the HAS-BLED Score Calculator.
 
 Usage:
     python cli.py score --hypertension --renal --elderly --nsaids
-    python cli.py score --hypertension --liver --stroke --bleeding --labile-inr --elderly --drugs --alcohol
+    python cli.py score --hypertension --liver --stroke --elderly --alcohol
     python cli.py assess --chadsvasc 4 --hasbled 3
     python cli.py modified --hypertension --renal --anemia
 """
@@ -24,7 +24,8 @@ from has_bled import (
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="has-bled",
-        description="HAS-BLED Score Calculator — Major bleeding risk in AF patients on anticoagulation",
+        description=("HAS-BLED Score Calculator — bleeding risk factors in "
+                     "atrial fibrillation"),
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -50,14 +51,14 @@ def build_parser():
     p_score.add_argument("--drugs", "--nsaids", action="store_true",
                          help="Antiplatelet agents or NSAIDs")
     p_score.add_argument("--alcohol", action="store_true",
-                         help="≥8 drinks per week")
+                         help="≥8 alcohol units per week")
     p_score.add_argument("--json", action="store_true",
                          help="Output as JSON")
 
     # --- assess subcommand ---
     p_assess = sub.add_parser(
         "assess",
-        help="Combined HAS-BLED + CHA₂DS₂-VASc assessment",
+        help="Descriptive HAS-BLED + CHA₂DS₂-VASc review (not a treatment rule)",
     )
     p_assess.add_argument("--hasbled", type=int, required=True,
                           help="HAS-BLED score (0-9)")
@@ -69,7 +70,7 @@ def build_parser():
     # --- modified subcommand ---
     p_mod = sub.add_parser(
         "modified",
-        help="Modified HAS-BLED with extended criteria (anemia, thrombocytopenia)",
+        help="Experimental unvalidated extension (anemia, thrombocytopenia)",
     )
     p_mod.add_argument("--hypertension", action="store_true")
     p_mod.add_argument("--renal", action="store_true")
@@ -146,7 +147,8 @@ def main(argv=None):
                   f"(standard: {result['standard_score']})")
             if result["extra_factors"]:
                 print(f"  Extra factors: {', '.join(result['extra_factors'])}")
-            print(f"  Modified Risk Level: {result['risk_level']}")
+            print(f"  Modified Score Validation: {result['risk_level']}")
+            print(f"  Note: {result['note']}")
         return 0
 
     parser.print_help()
