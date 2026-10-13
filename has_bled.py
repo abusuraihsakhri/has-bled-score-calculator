@@ -4,7 +4,7 @@ HAS-BLED Score Calculator for Major Bleeding Risk in Atrial Fibrillation.
 Supports structured HAS-BLED assessment. Not an anticoagulation decision rule.
 Score range: 0-9 points. Stdlib only.
 
-Reference: Lip GY, et al. "A novel user-friendly score (HAS-BLED) to assess
+Reference: Pisters R, et al. "A novel user-friendly score (HAS-BLED) to assess
 1-year risk of major bleeding in patients with atrial fibrillation."
 Chest. 2010;138(5):1093-1100.
 """
@@ -33,7 +33,7 @@ RISK_FACTORS = [
     ("stroke", "Stroke history", "S", False,
      "Prior stroke (consider TIA history in clinical context)"),
     ("bleeding", "Bleeding history/predisposition", "B", False,
-     "Prior major bleed, anemia, Hb <10 g/dL"),
+     "Prior major bleeding or bleeding predisposition (including anemia)"),
     ("labile_inr", "Labile INR", "L", True,
      "Unstable/high INR, <60% time in therapeutic range"),
     ("elderly", "Elderly", "E", False,
