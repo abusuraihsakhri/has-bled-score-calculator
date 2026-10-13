@@ -1,0 +1,35 @@
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172b40;background:#f3f6fa;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0}
+.shell{max-width:1120px;margin:0 auto;padding:32px 22px 40px}
+header{max-width:840px;margin-bottom:24px}
+.eyebrow{font-size:.74rem;font-weight:800;letter-spacing:.14em;color:#37617e}
+h1{font-size:clamp(2rem,4vw,3rem);line-height:1.12;letter-spacing:-.03em;margin:10px 0}
+.lede{font-size:1.04rem;color:#40596f;line-height:1.6}
+.columns{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(285px,1fr);gap:22px;align-items:start}
+fieldset,.result,.notice{background:white;border:1px solid #d7e0e9;border-radius:14px}
+fieldset{margin:0;padding:18px}
+legend{font-size:1.13rem;font-weight:700;padding:0 5px}
+.small{font-size:.85rem;color:#54697b;font-weight:400}
+.factor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.factor{border:1px solid #dce4ec;border-radius:9px;padding:12px;display:flex;align-items:start;gap:9px;cursor:pointer}
+.factor:hover{border-color:#4881a1;background:#f6faff}
+.factor:has(input:checked){border-color:#17608a;background:#eef7fc}
+.factor input{width:18px;height:18px;accent-color:#17608a;flex:none;margin:2px 0 0}
+.factor strong,.factor small{display:block}
+.factor strong{font-size:.92rem}
+.factor small{font-size:.8rem;color:#51677a;line-height:1.45;margin-top:4px}
+.reset{margin:15px 0 0;padding:10px 15px;border:1px solid #aac0d1;background:white;color:#153d58;border-radius:7px;font-weight:700;cursor:pointer}
+.reset:hover{background:#e9f2f8}
+:focus-visible{outline:3px solid #126aa2;outline-offset:3px}
+.result{padding:20px 24px}
+h2{font-size:1.14rem;margin:0 0 14px}
+h3{font-size:.84rem;text-transform:uppercase;letter-spacing:.07em;color:#4c6074;margin:24px 0 6px}
+.score{font-size:3.25rem;font-weight:800;letter-spacing:-.04em;color:#144e77}
+.level{margin:3px 0;font-weight:700}
+.result p:not(.level){line-height:1.55}
+.notice{margin-top:22px;padding:20px 24px}
+.notice p{line-height:1.6;color:#40596f}
+a{color:#105d88}
+footer{font-size:.83rem;color:#53697a;padding:12px 2px}
+@media(max-width:790px){.columns{grid-template-columns:1fr}.factor-grid{grid-template-columns:1fr}.shell{padding:22px 14px}.result{padding:18px}}
