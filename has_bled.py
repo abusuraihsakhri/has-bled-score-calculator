@@ -1,7 +1,7 @@
 """
 HAS-BLED Score Calculator for Major Bleeding Risk in Atrial Fibrillation.
 
-Validates bleeding risk in AF patients on anticoagulation therapy.
+Supports structured HAS-BLED assessment. Not an anticoagulation decision rule.
 Score range: 0-9 points. Stdlib only.
 
 Reference: Lip GY, et al. "A novel user-friendly score (HAS-BLED) to assess
@@ -28,9 +28,9 @@ RISK_FACTORS = [
     ("renal", "Abnormal renal function", "A", True,
      "Dialysis, transplant, Cr >2.26 mg/dL or >200 µmol/L"),
     ("liver", "Abnormal liver function", "A", True,
-     "Cirrhosis, bilirubin >2× normal, AST/ALT/ALP >3× normal"),
+     "Cirrhosis or bilirubin >2× ULN with AST/ALT/ALP >3× ULN"),
     ("stroke", "Stroke history", "S", False,
-     "Prior stroke or TIA"),
+     "Prior stroke (consider TIA history in clinical context)"),
     ("bleeding", "Bleeding history/predisposition", "B", False,
      "Prior major bleed, anemia, Hb <10 g/dL"),
     ("labile_inr", "Labile INR", "L", True,
@@ -40,10 +40,11 @@ RISK_FACTORS = [
     ("drugs", "Drugs (antiplatelet/NSAIDs)", "D", True,
      "Concomitant antiplatelet agents or NSAIDs"),
     ("alcohol", "Alcohol excess", "D", True,
-     "≥8 drinks per week"),
+     "≥8 alcohol units per week"),
 ]
 
-# Annual bleeding risk percentages by score (Lip et al. 2010)
+# Historical major-bleeding rates per 100 patient-years (Pisters et al., 2010).
+# Sparse observations preclude an estimate above score 5; do not extrapolate.
 BLEEDING_RISK = {
     0: 1.13,
     1: 1.02,
@@ -51,10 +52,10 @@ BLEEDING_RISK = {
     3: 3.74,
     4: 8.70,
     5: 12.50,
-    6: 12.50,  # ≥6 grouped
-    7: 12.50,
-    8: 12.50,
-    9: 12.50,
+    6: None,
+    7: None,
+    8: None,
+    9: None,
 }
 
 # ---------------------------------------------------------------------------
@@ -76,13 +77,14 @@ def calculate_score(hypertension=False, renal=False, liver=False,
         labile_inr: Labile/unstable INR (<60% TTR)
         elderly: Age >65 years
         drugs: Concomitant antiplatelet agents or NSAIDs
-        alcohol: ≥8 drinks per week
+        alcohol: ≥8 alcohol units per week
 
     Returns:
         dict with:
           - score (int): 0-9
-          - risk_level (str): "Low", "Moderate", "High", "Very High"
-          - annual_bleeding_risk (float): estimated % per year
+          - risk_level (str): "Low", "Moderate", "High"
+          - annual_bleeding_risk (float | None): historical rate/100 patient-years
+            for scores 0-5, or None if insufficient data
           - factors_present (list[str]): names of present factors
           - modifiable (list[str]): modifiable factors present
           - non_modifiable (list[str]): non-modifiable factors present
@@ -138,25 +140,23 @@ def calculate_score(hypertension=False, renal=False, liver=False,
         risk_level = "Low"
     elif score == 2:
         risk_level = "Moderate"
-    elif score <= 5:
-        risk_level = "High"
     else:
-        risk_level = "Very High"
+        risk_level = "High"
 
-    annual_risk = BLEEDING_RISK.get(min(score, 6), 12.50)
+    annual_risk = BLEEDING_RISK[score]
 
-    # Clinical guidance
-    if score <= 2:
+    # A score >=3 highlights the need to review bleeding risk factors, not
+    # an automatic reason to withhold oral anticoagulation.
+    if score >= 3:
         guidance = (
-            "Anticoagulation generally safe. Regular review recommended. "
-            "Address any modifiable risk factors to maintain low risk."
+            "High bleeding risk: review reversible factors (blood pressure, "
+            "INR control when relevant, antiplatelets/NSAIDs, alcohol). "
+            "Do not use HAS-BLED alone to withhold anticoagulation."
         )
     else:
         guidance = (
-            "High bleeding risk (score >= 3). Address modifiable risk factors "
-            "(e.g., control BP, improve INR control, avoid NSAIDs, reduce alcohol). "
-            "Consider more frequent monitoring. Score >= 3 does NOT contraindicate "
-            "anticoagulation but warrants caution and shared decision-making."
+            "Review bleeding risk factors periodically. A low HAS-BLED score "
+            "does not establish anticoagulant safety or determine treatment."
         )
 
     return {
@@ -189,81 +189,44 @@ CHA2DS2VASC_RISK = {
 }
 
 
+def _validate_score(value, name):
+    """Accept an integer or an unsigned integer string in the valid 0-9 range."""
+    if isinstance(value, bool) or not (
+        isinstance(value, int) or (isinstance(value, str) and value.isascii() and
+                                   value.isdecimal())
+    ):
+        raise TypeError(f"{name} must be an integer from 0 to 9")
+    number = int(value)
+    if not 0 <= number <= 9:
+        raise ValueError(f"{name} must be between 0 and 9")
+    return number
+
+
 def assess_with_chadsvasc(hasbled_score, chadsvasc_score):
+    """Present both scores without manufacturing a net-benefit estimate.
+
+    Historical cohort rates are descriptive only. Bleeding and stroke rates
+    have different endpoints, populations, and treatment dependencies; their
+    subtraction does NOT estimate the benefit of anticoagulation.
+
+    Legacy fields net_benefit_pct and favors_anticoagulation remain for API
+    compatibility, but are always None because such inference is invalid.
     """
-    Combined assessment integrating HAS-BLED bleeding risk with
-    CHA₂DS₂-VASc stroke risk for balanced anticoagulation decisions.
+    hasbled_score = _validate_score(hasbled_score, "hasbled_score")
+    chadsvasc_score = _validate_score(chadsvasc_score, "chadsvasc_score")
+    stroke_pct, stroke_level = CHA2DS2VASC_RISK[chadsvasc_score]
+    bleed_pct = BLEEDING_RISK[hasbled_score]
 
-    Args:
-        hasbled_score: int 0-9 (values outside range are clamped)
-        chadsvasc_score: int 0-9 (values outside range are clamped)
-
-    Returns:
-        dict with stroke_risk, bleeding_risk, net_benefit, recommendation
-
-    Raises:
-        TypeError: If scores are not numeric types that can be converted to int.
-        ValueError: If scores cannot be converted to int.
-    """
-    try:
-        hasbled_score = int(hasbled_score)
-    except (TypeError, ValueError) as e:
-        raise TypeError(
-            f"hasbled_score must be a numeric type, got {type(hasbled_score).__name__}"
-        ) from e
-    try:
-        chadsvasc_score = int(chadsvasc_score)
-    except (TypeError, ValueError) as e:
-        raise TypeError(
-            f"chadsvasc_score must be a numeric type, got {type(chadsvasc_score).__name__}"
-        ) from e
-
-    hasbled_score = max(0, min(9, hasbled_score))
-    chadsvasc_score = max(0, min(9, chadsvasc_score))
-
-    stroke_pct, stroke_level = CHA2DS2VASC_RISK.get(
-        chadsvasc_score, (15.2, "High")
+    guidance = (
+        "Assess stroke-prevention eligibility using current AF guidelines, "
+        "sex-specific context and individual clinical factors. HAS-BLED "
+        "identifies bleeding risk factors for review; it must not be used "
+        "alone to withhold anticoagulation. The two historical event rates "
+        "cannot be subtracted to estimate net clinical benefit."
     )
-    bleed_pct = BLEEDING_RISK.get(min(hasbled_score, 6), 12.50)
-
-    # Net clinical benefit: stroke risk minus bleeding risk
-    # Positive = favors anticoagulation
-    net_benefit = stroke_pct - bleed_pct
-
-    if chadsvasc_score == 0:
-        recommendation = (
-            "Low stroke risk. Anticoagulation generally NOT recommended "
-            "regardless of bleeding risk."
-        )
-    elif chadsvasc_score == 1:
-        recommendation = (
-            "Borderline stroke risk. Consider patient preferences. "
-            "Anticoagulation may be reasonable if bleeding risk is low."
-        )
-    elif hasbled_score >= 3 and chadsvasc_score >= 2:
-        if net_benefit > 0:
-            recommendation = (
-                "High bleeding risk but stroke risk outweighs bleeding risk. "
-                "Anticoagulation likely still beneficial. Address modifiable "
-                "bleeding risk factors and monitor closely."
-            )
-        else:
-            recommendation = (
-                "High bleeding risk with comparable or higher bleeding risk "
-                "than stroke risk. Careful individualized assessment needed. "
-                "Address all modifiable factors. Consider left atrial appendage "
-                "closure or alternative strategies."
-            )
-    elif hasbled_score <= 2 and chadsvasc_score >= 2:
-        recommendation = (
-            "Favorable risk-benefit profile. Anticoagulation recommended. "
-            "Stroke risk clearly exceeds bleeding risk."
-        )
-    else:
-        recommendation = (
-            "Individualized assessment recommended. Weigh stroke vs bleeding "
-            "risk with patient preferences."
-        )
+    if hasbled_score >= 3:
+        guidance = ("High HAS-BLED (>=3): address reversible bleeding risk "
+                    "factors and consider closer follow-up. " + guidance)
 
     return {
         "hasbled_score": hasbled_score,
@@ -271,9 +234,9 @@ def assess_with_chadsvasc(hasbled_score, chadsvasc_score):
         "stroke_annual_risk_pct": stroke_pct,
         "stroke_risk_level": stroke_level,
         "bleeding_annual_risk_pct": bleed_pct,
-        "net_benefit_pct": round(net_benefit, 2),
-        "favors_anticoagulation": net_benefit > 0,
-        "recommendation": recommendation,
+        "net_benefit_pct": None,
+        "favors_anticoagulation": None,
+        "recommendation": guidance,
     }
 
 
@@ -290,8 +253,9 @@ def calculate_modified_score(hypertension=False, renal=False, liver=False,
       - Anemia (Hb <12 g/dL women, <13 g/dL men): +1
       - Low platelets (<150 × 10⁹/L): +1
 
-    These are sometimes included in extended bleeding risk assessments.
-    Score range: 0-11.
+    This is an unvalidated experimental extension, not a recognized
+    HAS-BLED variant. Anemia can overlap with bleeding predisposition;
+    do not use the 0-11 total for clinical risk stratification.
 
     Raises:
         TypeError: If any parameter is not a boolean.
@@ -316,14 +280,8 @@ def calculate_modified_score(hypertension=False, renal=False, liver=False,
 
     modified_score = base["score"] + extra_points
 
-    if modified_score <= 1:
-        risk_level = "Low"
-    elif modified_score == 2:
-        risk_level = "Moderate"
-    elif modified_score <= 5:
-        risk_level = "High"
-    else:
-        risk_level = "Very High"
+    # Standard HAS-BLED cutoffs are not validated for a modified 0-11 total.
+    risk_level = "Not validated"
 
     return {
         "standard_score": base["score"],
@@ -331,6 +289,7 @@ def calculate_modified_score(hypertension=False, renal=False, liver=False,
         "extra_factors": extra_factors,
         "risk_level": risk_level,
         "standard_result": base,
+        "note": "Exploratory score only; no validated risk thresholds or rates.",
     }
 
 
@@ -346,7 +305,9 @@ def format_result(result):
         "=" * 55,
         f"  Score: {result['score']} / 9",
         f"  Risk Level: {result['risk_level']}",
-        f"  Annual Bleeding Risk: {result['annual_bleeding_risk']:.2f}%",
+        (f"  Historical Bleeding Rate: {result['annual_bleeding_risk']:.2f}"
+         " per 100 patient-years" if result['annual_bleeding_risk'] is not None
+         else "  Historical Bleeding Rate: Not estimable for scores above 5"),
         "",
         "  Factors Present:",
     ]
@@ -379,19 +340,21 @@ def format_result(result):
 
 
 def format_assessment(result):
-    """Format a combined HAS-BLED + CHA₂DS₂-VASc assessment."""
+    """Format the descriptive combined view, without a treatment verdict."""
+    bleeding = result["bleeding_annual_risk_pct"]
+    bleed_text = (f"{bleeding:.2f} per 100 patient-years" if bleeding is not None
+                  else "not estimable at this score")
     lines = [
         "=" * 60,
-        "  Combined Bleeding & Stroke Risk Assessment",
+        "  HAS-BLED & CHA2DS2-VASc (descriptive comparison only)",
         "=" * 60,
-        f"  HAS-BLED Score:      {result['hasbled_score']} / 9  "
-        f"(Bleeding risk: {result['bleeding_annual_risk_pct']:.2f}%/yr)",
-        f"  CHA2DS2-VASc Score:  {result['chadsvasc_score']} / 9  "
-        f"(Stroke risk: {result['stroke_annual_risk_pct']:.1f}%/yr)",
-        f"  Net Benefit:         {result['net_benefit_pct']:+.2f}%  "
-        f"({'Favors' if result['favors_anticoagulation'] else 'Does not favor'} anticoagulation)",
+        f"  HAS-BLED Score: {result['hasbled_score']} / 9",
+        f"  Historical major bleeding rate: {bleed_text}",
+        f"  CHA2DS2-VASc Score: {result['chadsvasc_score']} / 9",
+        f"  Historical stroke rate: {result['stroke_annual_risk_pct']:.1f}%/yr",
+        "  No net clinical benefit can be calculated from these rates.",
         "",
-        f"  Recommendation: {result['recommendation']}",
+        f"  Guidance: {result['recommendation']}",
         "=" * 60,
     ]
     return "\n".join(lines)
