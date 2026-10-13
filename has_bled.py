@@ -17,6 +17,7 @@ def _validate_bool(value, name):
             f"Parameter '{name}' must be a boolean, got {type(value).__name__}"
         )
 
+
 # ---------------------------------------------------------------------------
 # Risk factor definitions
 # ---------------------------------------------------------------------------
@@ -61,6 +62,7 @@ BLEEDING_RISK = {
 # ---------------------------------------------------------------------------
 # Core scoring
 # ---------------------------------------------------------------------------
+
 
 def calculate_score(hypertension=False, renal=False, liver=False,
                     stroke=False, bleeding=False, labile_inr=False,
@@ -244,10 +246,12 @@ def assess_with_chadsvasc(hasbled_score, chadsvasc_score):
 # Modified HAS-BLED (includes additional criteria)
 # ---------------------------------------------------------------------------
 
-def calculate_modified_score(hypertension=False, renal=False, liver=False,
-                              stroke=False, bleeding=False, labile_inr=False,
-                              elderly=False, drugs=False, alcohol=False,
-                              anemia=False, low_platelets=False):
+def calculate_modified_score(
+    hypertension=False, renal=False, liver=False,
+    stroke=False, bleeding=False, labile_inr=False,
+    elderly=False, drugs=False, alcohol=False,
+    anemia=False, low_platelets=False,
+):
     """
     Modified HAS-BLED that adds:
       - Anemia (Hb <12 g/dL women, <13 g/dL men): +1
